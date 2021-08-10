@@ -24,6 +24,8 @@ const isEventHandled = require('isEventHandled');
 const isSelectionAtLeafStart = require('isSelectionAtLeafStart');
 const nullthrows = require('nullthrows');
 const setImmediate = require('setImmediate');
+const replacePartiallyTypedWordWithSuggestion =
+  require('replacePartiallyTypedWordWithSuggestion');
 
 // When nothing is focused, Firefox regards two characters, `'` and `/`, as
 // commands that should open and focus the "quickfind" search bar. This should
@@ -36,6 +38,7 @@ const FF_QUICKFIND_CHAR = "'";
 const FF_QUICKFIND_LINK_CHAR = '/';
 const isFirefox = UserAgent.isBrowser('Firefox');
 const isIE = UserAgent.isBrowser('IE');
+const WORD_SUGGESTION_PATTERN = /^[^\s]+\s$/;
 
 function mustPreventDefaultForCharacter(character: string): boolean {
   return (
@@ -142,19 +145,29 @@ function editOnBeforeInput(
     return;
   }
 
-  let newEditorState = replaceText(
-    editorState,
-    chars,
-    editorState.getCurrentInlineStyle(),
-    getEntityKeyForSelection(
-      editorState.getCurrentContent(),
-      editorState.getSelection(),
-    ),
-    false,
-  );
+  let mustPreventNative = false;
+  let newEditorState;
+
+  if (WORD_SUGGESTION_PATTERN.test(chars)) {
+    newEditorState = replacePartiallyTypedWordWithSuggestion(
+      editorState,
+      chars
+    );
+    mustPreventNative = true;
+  } else {
+    newEditorState = replaceText(
+      editorState,
+      chars,
+      editorState.getCurrentInlineStyle(),
+      getEntityKeyForSelection(
+        editorState.getCurrentContent(),
+        editorState.getSelection(),
+      ),
+      false,
+    );
+  }
 
   // Bunch of different cases follow where we need to prevent native insertion.
-  let mustPreventNative = false;
   if (!mustPreventNative) {
     // Browsers tend to insert text in weird places in the DOM when typing at
     // the start of a leaf, so we'll handle it ourselves.

@@ -96,6 +96,8 @@ function editOnBeforeInput(
     }
   }
 
+  debugger;
+
   const editorState = editor._latestEditorState;
 
   const chars = e.data;

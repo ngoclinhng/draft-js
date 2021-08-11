@@ -13,7 +13,36 @@
 
 import type DraftEditor from 'DraftEditor.react';
 
+const DraftModifier = require('DraftModifier');
 const EditorState = require('EditorState');
+const getEntityKeyForSelection = require('getEntityKeyForSelection');
+
+/**
+ * Replace the current selection range with an empty string. If the current
+ * selection is collapsed, then this is a no-ops (right?), otherwise,
+ * the entire text from the selection range will be removed.
+ */
+function replaceCurrentSelectionRangeWithEmptyString(
+  editorState: EditorState
+): EditorState {
+  const currContent = editorState.getCurrentContent();
+  const selection = editorState.getSelection();
+
+  const nextContent = DraftModifier.replaceText(
+    currContent,
+    selection,
+    ''/* an empty string */,
+    editorState.getCurrentInlineStyle(),
+    getEntityKeyForSelection(currContent, selection)
+  );
+
+  return EditorState.push(
+    editorState,
+    nextContent,
+    'insert-characters',
+    true/* force selection */
+  );
+}
 
 /**
  * The user has begun using an IME input system. Switching to `composite` mode
@@ -24,9 +53,16 @@ function editOnCompositionStart(
   e: SyntheticEvent<>,
 ): void {
   editor.setMode('composite');
-  editor.update(
-    EditorState.set(editor._latestEditorState, {inCompositionMode: true}),
+
+  // https://github.com/facebook/draft-js/issues/2718
+  const latestEditorState = replaceCurrentSelectionRangeWithEmptyString(
+    editor._latestEditorState
   );
+
+  editor.update(
+    EditorState.set(latestEditorState, {inCompositionMode: true})
+  );
+
   // Allow composition handler to interpret the compositionstart event
   editor._onCompositionStart(e);
 }
